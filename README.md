@@ -1,4 +1,4 @@
-# SLF TETRIS
+# Slf TETRIS
 A javascript-canvas tetris, where you will never lose.
 
 ## Keyboard commands
