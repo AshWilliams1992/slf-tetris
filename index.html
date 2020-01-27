@@ -1,0 +1,684 @@
+﻿<!DOCTYPE html>
+
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8" />
+    <title>CDT - Tetris</title>
+
+    <style type="text/css">
+        html, body {
+            margin: 0px;
+            padding: 0px;
+            background-color: #000;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            margin: 40px auto 0px auto;
+            background-color: #FFFFFF;
+            border: 2px solid red;
+            border-radius: 5px;
+        }
+    </style>
+
+</head>
+<body>
+    <canvas id="cdtCanvas" width="396" height="796" />
+
+    <script type="text/javascript" src="myo.js"></script>
+    <script type="text/javascript">
+        "use strict";
+        //-- REFACTORING NECESSARIO!!!!!!
+
+        //---VARIABILI
+
+        //- Elementi Html
+        var contCanvas = document.getElementById("cdtCanvas");
+        var theCanvas = contCanvas.getContext("2d");
+
+        //- variabile che rappresenta un quadratino
+        var unit = contCanvas.offsetWidth / 10; //unità e campo da gioco 1:10 (40:400)
+        console.warn(unit + " - misura di un quadratino")
+
+        //- velocità del gioco
+        var speed = 280;
+
+        //- attributi elemento: indice di rotazione, spostamento asse x, spostamento asse y, unitToMove (di quanto si deve muovere) e larghezza oggetto
+        var rotation = 0;
+        var deltaX = 0;
+        var deltaY = 0;
+        var unitToMove = unit;
+        var objWidth;
+        var objHeight;
+
+        //- campo di gioco che si aggiorna per ogni pezzo creato, includendo i limiti
+        var limitX = 0;
+        var limitY = 0;
+        var rowEmpty = [];
+        var superMatrix = cdtFakeLimit();
+
+        //- stato del pezzo, se fermo o in movimento (non funziona molto bene)
+        var stateY;
+        var stateDx;
+        var stateSx;
+        var stateRot;
+        var actualCoord = [];
+
+
+        //---FUNZIONI
+
+        window.onload = init();
+
+        function init() {
+
+            document.addEventListener("keydown", function (event) {
+                command(event);
+            });
+
+            newPiece();
+
+        }
+
+        //-- FUNZIONE PRINCIPALE
+        var start;
+
+        function newPiece() {
+
+            var rectCol = randomColor();
+            var randomPiece = Math.floor(Math.random() * 5);
+
+            //- resetto l'array
+            actualCoord = [];
+
+            deltaX = 0;
+            deltaY = 0;
+            stateY = "";
+            stateDx = "";
+            stateSx = "";
+            stateRot = "";
+
+            start = setInterval(function () {
+
+                //- forma Info
+                var shape = randomShape(randomPiece, rotation);
+                objWidth = shape.lunghezza;
+                objHeight = shape.altezza;
+
+                //- vedo se il pezzo tocca il pavimento (setto stateY yStop in quel caso);
+                isFallEnd(objHeight);
+
+                if (stateY != "yStop") {
+
+                    //-- all'inizio cancello la forma che ho creato
+                    eraseCds(actualCoord);
+
+                    //- resetto l'array
+                    actualCoord = [];
+
+                    theCanvas.fillStyle = rectCol;
+                    for (var i = 0; i < shape.forma.length; i++) {
+
+                        //-- ridisegno ogni volta il pezzo
+                        var x = shape.forma[i][0];
+                        var y = shape.forma[i][1];
+
+                        //- disegno
+                        theCanvas.fillRect(x, y, unit, unit);
+
+                        //-- creo un array con le 4 posizioni del pezzo (che cambiano ogni volta)
+                        actualCoord.push({ x: x, y: y });
+
+                    }
+
+                    deltaY += unitToMove;
+
+                    checkPieces(actualCoord);
+
+                    //console.log("Parete sinistra: " + stateSx + " - Parete destra: " + stateDx + " - Rotazione: " + stateRot);
+
+                } else {
+
+                    updateLimits(actualCoord, rectCol);
+                    destroyRows();
+                    clearTimeout(start);
+                    setTimeout(newPiece, 500);
+
+                }
+
+            }, speed);
+
+        }
+
+        //- comandi da tastiera
+
+        function command(cmd) {
+
+            checkPieces(actualCoord);
+
+            switch (cmd.key) {
+
+                case "ArrowRight":
+                    //- controllo parete destra
+                    var objDistance = (objWidth + deltaX) / unit;
+                    var touchDx = (objDistance >= (limitX - 1)) ? true : false;
+
+                    //- controllo collisione con altri oggetti
+                    var collisionDx = (stateDx == "dxStop") ? true : false;
+
+                    if (!touchDx && !collisionDx) {
+                        deltaX = deltaX + unitToMove;
+                    }
+
+                    break;
+                case "ArrowLeft":
+                    //- controllo parete sinistra
+                    var touchSx = (deltaX < 0) ? true : false;
+
+                    //- controllo collisione con altri oggetti
+                    var collisionSx = (stateSx == "sxStop") ? true : false;
+
+                    if (!touchSx && !collisionSx) {
+                        deltaX = deltaX - unitToMove;
+                    }
+
+                    break;
+                case "r":
+
+                    var canRotate = (stateRot == "rotStop" || stateSx == "sxStop" || stateDx == "dxStop") ? false : true;
+
+                    //objWidth
+
+                    if (canRotate) {
+                        rotation = (rotation < 3) ? rotation + 1 : 0;
+                    }
+
+                    break;
+
+            }
+
+        }
+
+        //- funzione per capire dove finisce il riquadro
+
+        function cdtFakeLimit() {
+
+            var matrix = [];
+
+            var limitF = { x: contCanvas.offsetWidth, y: contCanvas.offsetHeight };
+
+            var colonne = parseInt(limitF.x / unitToMove);
+            var righe = parseInt(limitF.y / unitToMove);
+
+            limitX = colonne;
+            limitY = righe;
+
+            for (var i = 0; i < righe; i++) {
+
+                matrix[i] = [i];
+
+                for (var j = 0; j < colonne; j++) {
+                    matrix[i][j] = [1, "rgb(128, 128, 128)"];
+                    //-- creo una riga vuota che mi serve dopo
+                    rowEmpty[j] = [1, "rgb(128, 128, 128)"];
+                }
+            }
+
+            return matrix;
+        }
+
+        function updateLimits(arrayLimit, rectCol) {
+
+            for (var i = 0; i < arrayLimit.length; i++) {
+                var posMatX = arrayLimit[i].x / unitToMove;
+                var posMatY = arrayLimit[i].y / unitToMove;
+                superMatrix[posMatY][posMatX] = [0, rectCol];
+            }
+
+        }
+
+        function isFallEnd(heightPiece) {
+
+            var increment = (deltaY / unit) + (heightPiece / unit);
+
+            if (increment >= limitY) {
+                stateY = "yStop";
+            }
+
+        }
+
+        function checkPieces(coord) {
+
+            //- stati
+            //-- sxStop (non può andare a sinistra)
+            //-- dxStop (non può andare a destra)
+            //-- yStop (ha raggiunto un pezzo o il pavimento a terra)
+
+            stateDx = "";
+            stateSx = "";
+            stateRot = "";
+
+            for (var i = 0; i < coord.length; i++) {
+
+                var cdY = coord[i].y / unitToMove;
+                var cdX = coord[i].x / unitToMove;
+
+                //- Controlla se ci sono pezzi in basso
+                var coordY = (cdY + 1) >= limitY ? limitY - 1 : cdY + 1;
+                var coordX = cdX;
+
+                if (superMatrix[coordY][coordX][0] == 0) {
+                    stateY = "yStop";
+                }
+
+                //- Controlla se ci sono pezzi a sinistra
+                var sxCoordY = coordY;
+                var sxCoordX = cdX > 0 ? cdX - 1 : 0;
+
+                if (superMatrix[sxCoordY][sxCoordX][0] == 0) {
+                    stateSx = "sxStop";
+                }
+
+                //- Controlla se ci sono pezzi a destra
+                var dxCoordY = coordY;
+                var dxCoordX = (cdX + 1) >= limitX ? limitX - 1 : cdX + 1;
+
+                if (superMatrix[dxCoordY][dxCoordX][0] == 0) {
+                    stateDx = "dxStop";
+                }
+
+                //- Controlla se ci sono pezzi intorno
+                var rotCoordY = (cdY + 2) >= limitY ? limitY - 1 : cdY + 2;
+                var rotCoordX = (cdX + 2) >= limitX ? limitX - 1 : cdX + 2;
+                var rotCoordXNeg = (cdX - 2) <= 0 ? 0 : cdX - 2;
+
+                if (superMatrix[rotCoordY][rotCoordX][0] == 0 || superMatrix[rotCoordY][rotCoordXNeg][0] == 0) {
+                    stateRot = "rotStop";
+                }
+
+            }
+
+        }
+
+        //- funzioni per la forma
+
+        function randomShape(num, rot) {
+
+            var arrayUnit = {};
+
+            switch (num) {
+
+                case 0:
+                    var detail = createShape("square")["rotation" + rot];
+
+                    arrayUnit = {
+                        forma: detail[0],
+                        lunghezza: detail[1],
+                        altezza: detail[2]
+                    };
+
+                    break;
+                case 1:
+                    var detail = createShape("tower")["rotation" + rot];
+
+                    arrayUnit = {
+                        forma: detail[0],
+                        lunghezza: detail[1],
+                        altezza: detail[2]
+                    };
+
+                    break;
+                case 2:
+                    var detail = createShape("poligon")["rotation" + rot];
+
+                    arrayUnit = {
+                        forma: detail[0],
+                        lunghezza: detail[1],
+                        altezza: detail[2]
+                    };
+
+                    break;
+
+                case 3:
+                    var detail = createShape("zorro")["rotation" + rot];
+
+                    arrayUnit = {
+                        forma: detail[0],
+                        lunghezza: detail[1],
+                        altezza: detail[2]
+                    };
+
+                    break;
+
+                case 4:
+                    var detail = createShape("elle")["rotation" + rot];
+
+                    arrayUnit = {
+                        forma: detail[0],
+                        lunghezza: detail[1],
+                        altezza: detail[2]
+                    };
+
+                    break;
+
+            }
+
+            return arrayUnit;
+        }
+
+        function createShape(obj) {
+
+            //- da qui escono gli elementi posizionati in alto a sinistra + delta che si aggiorna
+
+            var objUnit = {};
+            var pos0 = [];
+            var pos1 = [];
+            var pos2 = [];
+            var pos3 = [];
+
+            var spatialX = deltaX + unit;
+            var spatialY = deltaY + unit;
+
+            switch (obj) {
+
+                case "square":
+                    ///- square = [][]
+                    ///           [][]
+
+                    pos0.push(
+                        [spatialX, spatialY],
+                        [spatialX + unit, spatialY],
+                        [spatialX, spatialY + unit],
+                        [spatialX + unit, spatialY + unit]
+                    );
+
+                    pos1.push(
+                        [spatialX, spatialY],
+                        [spatialX + unit, spatialY],
+                        [spatialX, spatialY + unit],
+                        [spatialX + unit, spatialY + unit]
+                    );
+
+                    pos2.push(
+                        [spatialX, spatialY],
+                        [spatialX + unit, spatialY],
+                        [spatialX, spatialY + unit],
+                        [spatialX + unit, spatialY + unit]
+                    );
+
+                    pos3.push(
+                        [spatialX, spatialY],
+                        [spatialX + unit, spatialY],
+                        [spatialX, spatialY + unit],
+                        [spatialX + unit, spatialY + unit]
+                    );
+
+
+                    //- posizione 0 = posizione dell'oggetto, 1 = lunghezza in x dell'oggetto, 2 = lunghezza in y dell'oggetto
+                    objUnit = {
+                        rotation0: [pos0, (unit * 2), (unit * 2)],
+                        rotation1: [pos1, (unit * 2), (unit * 2)],
+                        rotation2: [pos2, (unit * 2), (unit * 2)],
+                        rotation3: [pos3, (unit * 2), (unit * 2)]
+                    };
+
+                    break;
+                case "tower":
+                    ///- tower =  []
+                    ///           []
+                    ///           []
+                    ///           []
+
+                    pos0.push(
+                        [spatialX, spatialY],
+                        [spatialX, spatialY + unit],
+                        [spatialX, spatialY + (unit * 2)],
+                        [spatialX, spatialY + (unit * 3)]
+                    );
+
+                    pos1.push(
+                        [spatialX, spatialY],
+                        [spatialX + unit, spatialY],
+                        [spatialX + (unit * 2), spatialY],
+                        [spatialX + (unit * 3), spatialY]
+                    );
+
+                    pos2.push(
+                        [spatialX, spatialY],
+                        [spatialX, spatialY + unit],
+                        [spatialX, spatialY + (unit * 2)],
+                        [spatialX, spatialY + (unit * 3)]
+                    );
+
+                    pos3.push(
+                        [spatialX, spatialY],
+                        [spatialX + unit, spatialY],
+                        [spatialX + (unit * 2), spatialY],
+                        [spatialX + (unit * 3), spatialY]
+                    );
+
+
+                    //- posizione 0 = posizione dell'oggetto, 1 = lunghezza in x dell'oggetto, 2 = lunghezza in y dell'oggetto
+                    objUnit = {
+                        rotation0: [pos0, unit, (unit * 4)],
+                        rotation1: [pos1, (unit * 4), unit],
+                        rotation2: [pos2, unit, (unit * 4)],
+                        rotation3: [pos3, (unit * 4), unit]
+                    };
+
+                    break;
+                case "poligon":
+
+                    ///                    []            []
+                    ///- poligon =    []   [][] [][][] [][]
+                    ///             [][][] []     []     []
+
+                    pos0.push(
+                        [spatialX + unit, spatialY],
+                        [spatialX, spatialY + unit],
+                        [spatialX + unit, spatialY + unit],
+                        [spatialX + (unit * 2), spatialY + unit]
+                    );
+
+                    pos1.push(
+                        [spatialX, spatialY],
+                        [spatialX, spatialY + unit],
+                        [spatialX + unit, spatialY + unit],
+                        [spatialX, spatialY + (unit * 2)]
+                    );
+
+                    pos2.push(
+                        [spatialX, spatialY],
+                        [spatialX + unit, spatialY],
+                        [spatialX + (unit * 2), spatialY],
+                        [spatialX + unit, spatialY + unit]);
+
+                    pos3.push([spatialX, spatialY + unit],
+                        [spatialX + unit, spatialY],
+                        [spatialX + unit, spatialY + unit],
+                        [spatialX + unit, spatialY + (unit * 2)]
+                    );
+
+
+                    //- posizione 0 = posizione dell'oggetto, 1 = lunghezza in x dell'oggetto, 2 = lunghezza in y dell'oggetto
+                    objUnit = {
+                        rotation0: [pos0, (unit * 3), (unit * 2)],
+                        rotation1: [pos1, (unit * 2), (unit * 3)],
+                        rotation2: [pos2, (unit * 3), (unit * 2)],
+                        rotation3: [pos3, (unit * 2), (unit * 3)]
+                    };
+
+                    break;
+                case "zorro":
+                    ///- zorro  = [][]     []
+                    ///             [][] [][]
+                    ///                  []
+
+                    pos0.push(
+                        [spatialX, spatialY],
+                        [spatialX + unit, spatialY],
+                        [spatialX + unit, spatialY + unit],
+                        [spatialX + (unit * 2), spatialY + unit]
+                    );
+
+                    pos1.push(
+                        [spatialX + unit, spatialY],
+                        [spatialX, spatialY + unit],
+                        [spatialX + unit, spatialY + unit],
+                        [spatialX, spatialY + (unit * 2)]
+                    );
+
+                    pos2.push(
+                        [spatialX, spatialY],
+                        [spatialX + unit, spatialY],
+                        [spatialX + unit, spatialY + unit],
+                        [spatialX + (unit * 2), spatialY + unit]
+                    );
+
+                    pos3.push(
+                        [spatialX + unit, spatialY],
+                        [spatialX, spatialY + unit],
+                        [spatialX + unit, spatialY + unit],
+                        [spatialX, spatialY + (unit * 2)]
+                    );
+
+
+                    //- posizione 0 = posizione dell'oggetto, 1 = lunghezza in x dell'oggetto, 2 = lunghezza in y dell'oggetto
+                    objUnit = {
+                        rotation0: [pos0, (unit * 3), (unit * 2)],
+                        rotation1: [pos1, (unit * 2), (unit * 3)],
+                        rotation2: [pos2, (unit * 3), (unit * 2)],
+                        rotation3: [pos3, (unit * 2), (unit * 3)]
+                    };
+
+                    break;
+                case "elle":
+                    ///- elle  = []       [][] [][][]   []
+                    ///          [][][]   []       []   []
+                    ///                   []          [][]
+                    ///
+
+                    pos0.push(
+                        [spatialX, spatialY],
+                        [spatialX, spatialY + unit],
+                        [spatialX + unit, spatialY + unit],
+                        [spatialX + (unit * 2), spatialY + unit]
+                    );
+
+                    pos1.push(
+                        [spatialX, spatialY],
+                        [spatialX + unit, spatialY],
+                        [spatialX, spatialY + unit],
+                        [spatialX, spatialY + (unit * 2)]
+                    );
+
+                    pos2.push(
+                        [spatialX, spatialY],
+                        [spatialX + unit, spatialY],
+                        [spatialX + (unit * 2), spatialY],
+                        [spatialX + (unit * 2), spatialY + unit]
+                    );
+
+                    pos3.push(
+                        [spatialX + unit, spatialY],
+                        [spatialX + unit, spatialY + unit],
+                        [spatialX + unit, spatialY + (unit * 2)],
+                        [spatialX, spatialY + (unit * 2)]
+                    );
+
+
+                    //- posizione 0 = posizione dell'oggetto, 1 = lunghezza in x dell'oggetto, 2 = lunghezza in y dell'oggetto
+                    objUnit = {
+                        rotation0: [pos0, (unit * 3), (unit * 2)],
+                        rotation1: [pos1, (unit * 2), (unit * 3)],
+                        rotation2: [pos2, (unit * 3), (unit * 2)],
+                        rotation3: [pos3, (unit * 2), (unit * 3)]
+                    };
+
+                    break;
+
+            }
+
+            return objUnit;
+
+        }
+
+        //- funzione per il colore random
+
+        function randomColor() {
+            var rgb = "rgb(" + Math.floor(Math.random() * 128) + "," + Math.floor(Math.random() * 128) + "," + Math.floor(Math.random() * 128) + ")";
+            return rgb;
+        }
+
+        //- cancello il pezzo ogni volta, in base alle sue coordinate
+        function eraseCds(oldCoord) {
+
+            for (var i = 0; i < oldCoord.length; i++) {
+                theCanvas.fillStyle = "#FFFFFF";
+                theCanvas.fillRect(oldCoord[i].x, oldCoord[i].y, unit, unit);
+            }
+
+        }
+
+        function eraseAllCds() {
+            theCanvas.fillStyle = "#FFFFFF";
+            theCanvas.fillRect(0, 0, contCanvas.width, contCanvas.height);
+        }
+
+        //- Distruggo righe come se non ci fosse un domani
+        function destroyRows() {
+
+            for (var riga = 0; riga < limitY; riga++) {
+
+                var isFull = true;
+
+                for (var cella = 0; cella < limitX; cella++) {
+                    if (superMatrix[riga][cella][0] == 1) {
+                        isFull = false;
+                    }
+                }
+
+                if (isFull) {
+                    eraseAllCds();
+                    rebuildRows(riga);
+                }
+
+            }
+
+        }
+
+        function rebuildRows(numRiga) {
+
+            //-- Rimuovo la riga maledetta
+            superMatrix = superMatrix.slice(0);
+            superMatrix.splice(numRiga, 1);
+
+            //-- Aggiungo riga nuova all'inizio
+            superMatrix.unshift(rowEmpty);
+
+            for (var riga = superMatrix.length - 1; riga >= 0; riga--) {
+
+                for (var colonna = 0; colonna < superMatrix[riga].length; colonna++) {
+
+                    var thisCell = superMatrix[riga][colonna];
+                    var state = thisCell[0];
+                    var color = thisCell[1];
+
+                    if (state == 0) {
+                        theCanvas.fillStyle = color;
+                        theCanvas.fillRect(colonna * unit, riga * unit, unit, unit);
+                    }
+
+
+                }
+
+            }
+
+        }
+
+    </script>
+
+</body>
+</html>
