@@ -28,25 +28,23 @@
 <body>
     <canvas id="cdtCanvas" width="396" height="796" />
 
-    <script type="text/javascript" src="myo.js"></script>
     <script type="text/javascript">
         "use strict";
-        //-- REFACTORING NECESSARIO!!!!!!
 
-        //---VARIABILI
+        //--- VARIABLES
 
-        //- Elementi Html
+        //- Html Elements
         var contCanvas = document.getElementById("cdtCanvas");
         var theCanvas = contCanvas.getContext("2d");
 
-        //- variabile che rappresenta un quadratino
+        //- single square
         var unit = contCanvas.offsetWidth / 10; //unità e campo da gioco 1:10 (40:400)
         console.warn(unit + " - misura di un quadratino")
 
-        //- velocità del gioco
+        //- game speed
         var speed = 280;
 
-        //- attributi elemento: indice di rotazione, spostamento asse x, spostamento asse y, unitToMove (di quanto si deve muovere) e larghezza oggetto
+		//- element attributes: rotation, x move, y move, unitToMove, lenght object
         var rotation = 0;
         var deltaX = 0;
         var deltaY = 0;
@@ -54,13 +52,13 @@
         var objWidth;
         var objHeight;
 
-        //- campo di gioco che si aggiorna per ogni pezzo creato, includendo i limiti
+		//- game field
         var limitX = 0;
         var limitY = 0;
         var rowEmpty = [];
         var superMatrix = cdtFakeLimit();
 
-        //- stato del pezzo, se fermo o in movimento (non funziona molto bene)
+		//- piece status ( move or stop )
         var stateY;
         var stateDx;
         var stateSx;
@@ -68,7 +66,7 @@
         var actualCoord = [];
 
 
-        //---FUNZIONI
+        //--- FUNCTIONS
 
         window.onload = init();
 
@@ -82,7 +80,7 @@
 
         }
 
-        //-- FUNZIONE PRINCIPALE
+        //-- MAIN FUNCTION
         var start;
 
         function newPiece() {
@@ -90,7 +88,7 @@
             var rectCol = randomColor();
             var randomPiece = Math.floor(Math.random() * 5);
 
-            //- resetto l'array
+            //- array reset
             actualCoord = [];
 
             deltaX = 0;
@@ -102,33 +100,33 @@
 
             start = setInterval(function () {
 
-                //- forma Info
+                //- info shape
                 var shape = randomShape(randomPiece, rotation);
                 objWidth = shape.lunghezza;
                 objHeight = shape.altezza;
 
-                //- vedo se il pezzo tocca il pavimento (setto stateY yStop in quel caso);
+                //- if the piece touch the ground, I block the piece
                 isFallEnd(objHeight);
 
                 if (stateY != "yStop") {
 
-                    //-- all'inizio cancello la forma che ho creato
+                    //-- at first I clear the shape
                     eraseCds(actualCoord);
 
-                    //- resetto l'array
+                    //- array reset
                     actualCoord = [];
 
                     theCanvas.fillStyle = rectCol;
                     for (var i = 0; i < shape.forma.length; i++) {
 
-                        //-- ridisegno ogni volta il pezzo
+                        //-- I draw every time the piece in a different position
                         var x = shape.forma[i][0];
                         var y = shape.forma[i][1];
 
-                        //- disegno
+                        //- draw
                         theCanvas.fillRect(x, y, unit, unit);
 
-                        //-- creo un array con le 4 posizioni del pezzo (che cambiano ogni volta)
+                        //-- array with the positions
                         actualCoord.push({ x: x, y: y });
 
                     }
@@ -152,7 +150,7 @@
 
         }
 
-        //- comandi da tastiera
+        //- keyboard
 
         function command(cmd) {
 
@@ -161,11 +159,11 @@
             switch (cmd.key) {
 
                 case "ArrowRight":
-                    //- controllo parete destra
+                    //- check right wall
                     var objDistance = (objWidth + deltaX) / unit;
                     var touchDx = (objDistance >= (limitX - 1)) ? true : false;
 
-                    //- controllo collisione con altri oggetti
+                    //- check collision
                     var collisionDx = (stateDx == "dxStop") ? true : false;
 
                     if (!touchDx && !collisionDx) {
@@ -174,10 +172,10 @@
 
                     break;
                 case "ArrowLeft":
-                    //- controllo parete sinistra
+                    //- check left wall
                     var touchSx = (deltaX < 0) ? true : false;
 
-                    //- controllo collisione con altri oggetti
+                    //- check collision
                     var collisionSx = (stateSx == "sxStop") ? true : false;
 
                     if (!touchSx && !collisionSx) {
@@ -201,7 +199,7 @@
 
         }
 
-        //- funzione per capire dove finisce il riquadro
+        //- function to understand the limits
 
         function cdtFakeLimit() {
 
@@ -221,7 +219,6 @@
 
                 for (var j = 0; j < colonne; j++) {
                     matrix[i][j] = [1, "rgb(128, 128, 128)"];
-                    //-- creo una riga vuota che mi serve dopo
                     rowEmpty[j] = [1, "rgb(128, 128, 128)"];
                 }
             }
@@ -251,10 +248,10 @@
 
         function checkPieces(coord) {
 
-            //- stati
-            //-- sxStop (non può andare a sinistra)
-            //-- dxStop (non può andare a destra)
-            //-- yStop (ha raggiunto un pezzo o il pavimento a terra)
+            //- states
+            //-- sxStop
+            //-- dxStop
+            //-- yStop (touched the floor)
 
             stateDx = "";
             stateSx = "";
@@ -265,7 +262,7 @@
                 var cdY = coord[i].y / unitToMove;
                 var cdX = coord[i].x / unitToMove;
 
-                //- Controlla se ci sono pezzi in basso
+                //- check bottom pieces
                 var coordY = (cdY + 1) >= limitY ? limitY - 1 : cdY + 1;
                 var coordX = cdX;
 
@@ -273,7 +270,7 @@
                     stateY = "yStop";
                 }
 
-                //- Controlla se ci sono pezzi a sinistra
+                //- check left pieces
                 var sxCoordY = coordY;
                 var sxCoordX = cdX > 0 ? cdX - 1 : 0;
 
@@ -281,7 +278,7 @@
                     stateSx = "sxStop";
                 }
 
-                //- Controlla se ci sono pezzi a destra
+                //- check right pieces
                 var dxCoordY = coordY;
                 var dxCoordX = (cdX + 1) >= limitX ? limitX - 1 : cdX + 1;
 
@@ -289,7 +286,6 @@
                     stateDx = "dxStop";
                 }
 
-                //- Controlla se ci sono pezzi intorno
                 var rotCoordY = (cdY + 2) >= limitY ? limitY - 1 : cdY + 2;
                 var rotCoordX = (cdX + 2) >= limitX ? limitX - 1 : cdX + 2;
                 var rotCoordXNeg = (cdX - 2) <= 0 ? 0 : cdX - 2;
@@ -302,7 +298,7 @@
 
         }
 
-        //- funzioni per la forma
+        //- create shapes
 
         function randomShape(num, rot) {
 
@@ -370,7 +366,6 @@
 
         function createShape(obj) {
 
-            //- da qui escono gli elementi posizionati in alto a sinistra + delta che si aggiorna
 
             var objUnit = {};
             var pos0 = [];
@@ -605,14 +600,11 @@
 
         }
 
-        //- funzione per il colore random
-
         function randomColor() {
             var rgb = "rgb(" + Math.floor(Math.random() * 128) + "," + Math.floor(Math.random() * 128) + "," + Math.floor(Math.random() * 128) + ")";
             return rgb;
         }
 
-        //- cancello il pezzo ogni volta, in base alle sue coordinate
         function eraseCds(oldCoord) {
 
             for (var i = 0; i < oldCoord.length; i++) {
@@ -627,7 +619,7 @@
             theCanvas.fillRect(0, 0, contCanvas.width, contCanvas.height);
         }
 
-        //- Distruggo righe come se non ci fosse un domani
+        //- Destroy rows if complete
         function destroyRows() {
 
             for (var riga = 0; riga < limitY; riga++) {
@@ -651,11 +643,11 @@
 
         function rebuildRows(numRiga) {
 
-            //-- Rimuovo la riga maledetta
+            //-- remove la row
             superMatrix = superMatrix.slice(0);
             superMatrix.splice(numRiga, 1);
 
-            //-- Aggiungo riga nuova all'inizio
+            //-- add row at first
             superMatrix.unshift(rowEmpty);
 
             for (var riga = superMatrix.length - 1; riga >= 0; riga--) {
