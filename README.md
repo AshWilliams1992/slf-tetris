@@ -1,7 +1,7 @@
 # SLF TETRIS
 A javascript-canvas tetris, where you will never lose.
 
-## Keyboars commands
+## Keyboard commands
 
 * Rotation: `r`;
 * Move left/right: `arrows`
